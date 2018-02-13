@@ -646,14 +646,10 @@ public class PlayerProfile {
 		}
 	}
 
-	private static String randomCodenameGenerator() {
-		final String a = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-		final SecureRandom r = new SecureRandom();
-		final int l = new Random().nextInt(15 - 10) + 10;
-		StringBuilder sb = new StringBuilder(l);
-		for (int i = 0; i < l; i++) {
-			sb.append(a.charAt(r.nextInt(a.length())));
-		}
+    private static String randomCodenameGenerator(int randomNR) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("pokemapecs");
+                sb.append(randomNR);
 		return sb.toString();
 	}
 }
