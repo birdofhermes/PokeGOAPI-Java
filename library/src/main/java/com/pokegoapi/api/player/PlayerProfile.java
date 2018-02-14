@@ -552,7 +552,7 @@ public class PlayerProfile {
 			throw new RuntimeException("You have no remaining codename claims!");
 		}
 
-		String name = randomCodenameGenerator();
+		String name = randomCodenameGenerator(startNr);
 
 		List<TutorialListener> listeners = api.getListeners(TutorialListener.class);
 		for (TutorialListener listener : listeners) {
