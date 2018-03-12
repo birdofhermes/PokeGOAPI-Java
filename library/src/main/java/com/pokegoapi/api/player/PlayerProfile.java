@@ -548,6 +548,7 @@ public class PlayerProfile {
 	 */
     public String claimCodeName(String lastFailure) throws RequestFailedException {
         System.out.println("Param:"+lastFailure);
+        String name ="";
         if (getPlayerData().getRemainingCodenameClaims() <= 0) {
             throw new RuntimeException("You have no remaining codename claims!");
         }
