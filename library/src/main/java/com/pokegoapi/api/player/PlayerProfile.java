@@ -12,7 +12,6 @@
  *     You should have received a copy of the GNU General Public License
  *     along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 package com.pokegoapi.api.player;
 
 import POGOProtos.Data.Player.CurrencyOuterClass;
@@ -64,491 +63,505 @@ import java.util.Map;
 import java.util.Random;
 
 public class PlayerProfile {
-	private static final String TAG = PlayerProfile.class.getSimpleName();
-	private final PokemonGo api;
-	private final PlayerLocale playerLocale;
-	private PlayerData playerData;
-	@Getter
-	private Map<BadgeType, Medal> medals = Collections.synchronizedMap(new HashMap<BadgeType, Medal>());
-	private PlayerAvatar avatar;
-	private DailyBonus dailyBonus;
-	private ContactSettings contactSettings;
-	private Map<Currency, Integer> currencies =
-			Collections.synchronizedMap(new EnumMap<Currency, Integer>(Currency.class));
 
-	@Getter
-	private long startTime;
+    private static final String TAG = PlayerProfile.class.getSimpleName();
+    private final PokemonGo api;
+    private final PlayerLocale playerLocale;
+    private PlayerData playerData;
+    @Getter
+    private Map<BadgeType, Medal> medals = Collections.synchronizedMap(new HashMap<BadgeType, Medal>());
+    private PlayerAvatar avatar;
+    private DailyBonus dailyBonus;
+    private ContactSettings contactSettings;
+    private Map<Currency, Integer> currencies
+            = Collections.synchronizedMap(new EnumMap<Currency, Integer>(Currency.class));
 
-	@Getter
-	private Buddy buddy;
+    @Getter
+    private long startTime;
 
-	private Stats stats;
-	private TutorialState tutorialState;
+    @Getter
+    private Buddy buddy;
 
-	@Getter
-	private final Object lock = new Object();
+    private Stats stats;
+    private TutorialState tutorialState;
 
-	@Getter
-	private int level = 1;
+    @Getter
+    private final Object lock = new Object();
 
-	@Getter
-	private boolean banned;
+    @Getter
+    private int level = 1;
 
-	@Getter
-	private boolean warned = false;
+    @Getter
+    private boolean banned;
 
-	/**
-	 * @param api the api
-	 */
-	public PlayerProfile(PokemonGo api) {
-		this.api = api;
-		this.playerLocale = new PlayerLocale();
-	}
+    @Getter
+    private boolean warned = false;
 
-	/**
-	 * Updates the player profile with the latest data.
-	 *
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 */
-	public void updateProfile() throws RequestFailedException {
-		GetPlayerMessage message = GetPlayerMessage.newBuilder()
-				.setPlayerLocale(playerLocale.getPlayerLocale())
-				.build();
+    /**
+     * @param api the api
+     */
+    public PlayerProfile(PokemonGo api) {
+        this.api = api;
+        this.playerLocale = new PlayerLocale();
+    }
 
-		ServerRequest request = new ServerRequest(RequestType.GET_PLAYER, message);
-		api.getRequestHandler().sendServerRequests(request, false);
+    /**
+     * Updates the player profile with the latest data.
+     *
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     */
+    public void updateProfile() throws RequestFailedException {
+        GetPlayerMessage message = GetPlayerMessage.newBuilder()
+                .setPlayerLocale(playerLocale.getPlayerLocale())
+                .build();
 
-		try {
-			updateProfile(GetPlayerResponse.parseFrom(request.getData()));
-		} catch (InvalidProtocolBufferException e) {
-			throw new RequestFailedException(e);
-		}
-	}
+        ServerRequest request = new ServerRequest(RequestType.GET_PLAYER, message);
+        api.getRequestHandler().sendServerRequests(request, false);
 
-	/**
-	 * Update the profile with the given response
-	 *
-	 * @param playerResponse the response
-	 */
-	public void updateProfile(GetPlayerResponse playerResponse) {
-		banned = playerResponse.getBanned();
-		if (playerResponse.getWarn() && !warned) {
-			warned = true;
-			List<PlayerListener> listeners = api.getListeners(PlayerListener.class);
-			for (PlayerListener listener : listeners) {
-				listener.onWarningReceived(api);
-			}
-		}
-		updateProfile(playerResponse.getPlayerData());
-	}
+        try {
+            updateProfile(GetPlayerResponse.parseFrom(request.getData()));
+        } catch (InvalidProtocolBufferException e) {
+            throw new RequestFailedException(e);
+        }
+    }
 
-	/**
-	 * Update the profile with the given player data
-	 *
-	 * @param playerData the data for update
-	 */
-	public void updateProfile(PlayerData playerData) {
-		this.playerData = playerData;
+    /**
+     * Update the profile with the given response
+     *
+     * @param playerResponse the response
+     */
+    public void updateProfile(GetPlayerResponse playerResponse) {
+        banned = playerResponse.getBanned();
+        if (playerResponse.getWarn() && !warned) {
+            warned = true;
+            List<PlayerListener> listeners = api.getListeners(PlayerListener.class);
+            for (PlayerListener listener : listeners) {
+                listener.onWarningReceived(api);
+            }
+        }
+        updateProfile(playerResponse.getPlayerData());
+    }
 
-		avatar = new PlayerAvatar(playerData.getAvatar());
-		dailyBonus = new DailyBonus(playerData.getDailyBonus());
-		contactSettings = new ContactSettings(playerData.getContactSettings());
+    /**
+     * Update the profile with the given player data
+     *
+     * @param playerData the data for update
+     */
+    public void updateProfile(PlayerData playerData) {
+        this.playerData = playerData;
 
-		// maybe something more graceful?
-		for (CurrencyOuterClass.Currency currency : playerData.getCurrenciesList()) {
-			try {
-				addCurrency(currency.getName(), currency.getAmount());
-			} catch (InvalidCurrencyException e) {
-				Log.w(TAG, "Error adding currency. You can probably ignore this.", e);
-			}
-		}
+        avatar = new PlayerAvatar(playerData.getAvatar());
+        dailyBonus = new DailyBonus(playerData.getDailyBonus());
+        contactSettings = new ContactSettings(playerData.getContactSettings());
 
-		// Tutorial state
-		tutorialState = new TutorialState(playerData.getTutorialStateList());
+        // maybe something more graceful?
+        for (CurrencyOuterClass.Currency currency : playerData.getCurrenciesList()) {
+            try {
+                addCurrency(currency.getName(), currency.getAmount());
+            } catch (InvalidCurrencyException e) {
+                Log.w(TAG, "Error adding currency. You can probably ignore this.", e);
+            }
+        }
 
-		if (playerData.hasBuddyPokemon() && playerData.getBuddyPokemon().getId() != 0) {
-			buddy = new Buddy(api, playerData.getBuddyPokemon());
-		} else {
-			buddy = null;
-		}
-	}
+        // Tutorial state
+        tutorialState = new TutorialState(playerData.getTutorialStateList());
 
-	/**
-	 * Performs a GET_PLAYER_PROFILE request.
-	 *
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 */
-	public void getProfile() throws RequestFailedException {
-		GetPlayerProfileMessage profileMessage = GetPlayerProfileMessage.newBuilder().setPlayerName("").build();
+        if (playerData.hasBuddyPokemon() && playerData.getBuddyPokemon().getId() != 0) {
+            buddy = new Buddy(api, playerData.getBuddyPokemon());
+        } else {
+            buddy = null;
+        }
+    }
 
-		ServerRequest profileRequest = new ServerRequest(RequestType.GET_PLAYER_PROFILE, profileMessage);
-		api.getRequestHandler().sendServerRequests(profileRequest, true);
+    /**
+     * Performs a GET_PLAYER_PROFILE request.
+     *
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     */
+    public void getProfile() throws RequestFailedException {
+        GetPlayerProfileMessage profileMessage = GetPlayerProfileMessage.newBuilder().setPlayerName("").build();
 
-		try {
-			GetPlayerProfileResponse response = GetPlayerProfileResponse.parseFrom(profileRequest.getData());
-			if (response.getResult() == GetPlayerProfileResponse.Result.SUCCESS) {
-				medals.clear();
-				List<PlayerBadge> badges = response.getBadgesList();
-				for (PlayerBadge badge : badges) {
-					medals.put(badge.getBadgeType(), new Medal(api, badge));
-				}
-				this.startTime = response.getStartTime();
-			}
-		} catch (InvalidProtocolBufferException e) {
-			throw new RequestFailedException(e);
-		}
-	}
+        ServerRequest profileRequest = new ServerRequest(RequestType.GET_PLAYER_PROFILE, profileMessage);
+        api.getRequestHandler().sendServerRequests(profileRequest, true);
 
-	/**
-	 * Accept the rewards granted and the items unlocked by gaining a trainer level up. Rewards are retained by the
-	 * server until a player actively accepts them.
-	 * The rewarded items are automatically inserted into the players item bag.
-	 *
-	 * @param level the trainer level that you want to accept the rewards for
-	 * @return a PlayerLevelUpRewards object containing information about the items rewarded and unlocked for this level
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 * @throws InsufficientLevelException if you have not yet reached the desired level
-	 * @see PlayerLevelUpRewards
-	 */
-	public PlayerLevelUpRewards acceptLevelUpRewards(int level)
-			throws RequestFailedException {
-		// Check if we even have achieved this level yet
-		if (level > stats.getLevel()) {
-			throw new InsufficientLevelException();
-		}
-		LevelUpRewardsMessage msg = LevelUpRewardsMessage.newBuilder()
-				.setLevel(level)
-				.build();
-		ServerRequest serverRequest = new ServerRequest(RequestType.LEVEL_UP_REWARDS, msg);
-		api.getRequestHandler().sendServerRequests(serverRequest, true);
-		LevelUpRewardsResponse response;
-		try {
-			response = LevelUpRewardsResponse.parseFrom(serverRequest.getData());
-		} catch (InvalidProtocolBufferException e) {
-			throw new RequestFailedException(e);
-		}
-		// Add the awarded items to our bag
-		ItemBag bag = api.getInventories().getItemBag();
-		bag.addAwardedItems(response);
-		// Build a new rewards object and return it
-		return new PlayerLevelUpRewards(response);
-	}
+        try {
+            GetPlayerProfileResponse response = GetPlayerProfileResponse.parseFrom(profileRequest.getData());
+            if (response.getResult() == GetPlayerProfileResponse.Result.SUCCESS) {
+                medals.clear();
+                List<PlayerBadge> badges = response.getBadgesList();
+                for (PlayerBadge badge : badges) {
+                    medals.put(badge.getBadgeType(), new Medal(api, badge));
+                }
+                this.startTime = response.getStartTime();
+            }
+        } catch (InvalidProtocolBufferException e) {
+            throw new RequestFailedException(e);
+        }
+    }
 
-	/**
-	 * Add currency.
-	 *
-	 * @param name the name
-	 * @param amount the amount
-	 * @throws InvalidCurrencyException the invalid currency exception
-	 */
-	public void addCurrency(String name, int amount) throws InvalidCurrencyException {
-		try {
-			synchronized (this.lock) {
-				currencies.put(Currency.valueOf(name), amount);
-			}
-		} catch (Exception e) {
-			throw new InvalidCurrencyException();
-		}
-	}
+    /**
+     * Accept the rewards granted and the items unlocked by gaining a trainer
+     * level up. Rewards are retained by the server until a player actively
+     * accepts them. The rewarded items are automatically inserted into the
+     * players item bag.
+     *
+     * @param level the trainer level that you want to accept the rewards for
+     * @return a PlayerLevelUpRewards object containing information about the
+     * items rewarded and unlocked for this level
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     * @throws InsufficientLevelException if you have not yet reached the
+     * desired level
+     * @see PlayerLevelUpRewards
+     */
+    public PlayerLevelUpRewards acceptLevelUpRewards(int level)
+            throws RequestFailedException {
+        // Check if we even have achieved this level yet
+        if (level > stats.getLevel()) {
+            throw new InsufficientLevelException();
+        }
+        LevelUpRewardsMessage msg = LevelUpRewardsMessage.newBuilder()
+                .setLevel(level)
+                .build();
+        ServerRequest serverRequest = new ServerRequest(RequestType.LEVEL_UP_REWARDS, msg);
+        api.getRequestHandler().sendServerRequests(serverRequest, true);
+        LevelUpRewardsResponse response;
+        try {
+            response = LevelUpRewardsResponse.parseFrom(serverRequest.getData());
+        } catch (InvalidProtocolBufferException e) {
+            throw new RequestFailedException(e);
+        }
+        // Add the awarded items to our bag
+        ItemBag bag = api.getInventories().getItemBag();
+        bag.addAwardedItems(response);
+        // Build a new rewards object and return it
+        return new PlayerLevelUpRewards(response);
+    }
 
-	/**
-	 * Check and equip badges.
-	 *
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 * @deprecated use getMedals, which uses common requests to check for badges
-	 */
-	@Deprecated
-	public void checkAndEquipBadges() throws RequestFailedException {
-		CheckAwardedBadgesMessage msg = CheckAwardedBadgesMessage.newBuilder().build();
-		ServerRequest serverRequest = new ServerRequest(RequestType.CHECK_AWARDED_BADGES, msg);
-		api.getRequestHandler().sendServerRequests(serverRequest, false);
-		CheckAwardedBadgesResponse response;
-		try {
-			response = CheckAwardedBadgesResponse.parseFrom(serverRequest.getData());
-		} catch (InvalidProtocolBufferException e) {
-			throw new RequestFailedException(e);
-		}
-		this.updateAwardedMedals(response);
-	}
+    /**
+     * Add currency.
+     *
+     * @param name the name
+     * @param amount the amount
+     * @throws InvalidCurrencyException the invalid currency exception
+     */
+    public void addCurrency(String name, int amount) throws InvalidCurrencyException {
+        try {
+            synchronized (this.lock) {
+                currencies.put(Currency.valueOf(name), amount);
+            }
+        } catch (Exception e) {
+            throw new InvalidCurrencyException();
+        }
+    }
 
-	/**
-	 * Gets currency.
-	 *
-	 * @param currency the currency
-	 * @return the currency
-	 */
-	public int getCurrency(Currency currency) {
-		synchronized (this.lock) {
-			if (!currencies.containsKey(currency)) {
-				return 0;
-			}
-			return currencies.get(currency);
-		}
-	}
+    /**
+     * Check and equip badges.
+     *
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     * @deprecated use getMedals, which uses common requests to check for badges
+     */
+    @Deprecated
+    public void checkAndEquipBadges() throws RequestFailedException {
+        CheckAwardedBadgesMessage msg = CheckAwardedBadgesMessage.newBuilder().build();
+        ServerRequest serverRequest = new ServerRequest(RequestType.CHECK_AWARDED_BADGES, msg);
+        api.getRequestHandler().sendServerRequests(serverRequest, false);
+        CheckAwardedBadgesResponse response;
+        try {
+            response = CheckAwardedBadgesResponse.parseFrom(serverRequest.getData());
+        } catch (InvalidProtocolBufferException e) {
+            throw new RequestFailedException(e);
+        }
+        this.updateAwardedMedals(response);
+    }
 
-	/**
-	 * Equips the badges contained in the given response
-	 *
-	 * @param response the response to get badges from
-	 */
-	public void updateAwardedMedals(CheckAwardedBadgesResponse response) {
-		if (response.getSuccess()) {
-			List<PlayerListener> listeners = api.getListeners(PlayerListener.class);
-			for (int i = 0; i < response.getAwardedBadgesCount(); i++) {
-				BadgeType type = response.getAwardedBadges(i);
-				int level = response.getAwardedBadgeLevels(i);
-				Medal medal = medals.get(type);
-				if (medal != null) {
-					medal.setRank(level);
-					for (PlayerListener listener : listeners) {
-						listener.onMedalAwarded(api, this, medal);
-					}
-				}
-			}
-		}
-	}
+    /**
+     * Gets currency.
+     *
+     * @param currency the currency
+     * @return the currency
+     */
+    public int getCurrency(Currency currency) {
+        synchronized (this.lock) {
+            if (!currencies.containsKey(currency)) {
+                return 0;
+            }
+            return currencies.get(currency);
+        }
+    }
 
-	public enum Currency {
-		STARDUST, POKECOIN
-	}
+    /**
+     * Equips the badges contained in the given response
+     *
+     * @param response the response to get badges from
+     */
+    public void updateAwardedMedals(CheckAwardedBadgesResponse response) {
+        if (response.getSuccess()) {
+            List<PlayerListener> listeners = api.getListeners(PlayerListener.class);
+            for (int i = 0; i < response.getAwardedBadgesCount(); i++) {
+                BadgeType type = response.getAwardedBadges(i);
+                int level = response.getAwardedBadgeLevels(i);
+                Medal medal = medals.get(type);
+                if (medal != null) {
+                    medal.setRank(level);
+                    for (PlayerListener listener : listeners) {
+                        listener.onMedalAwarded(api, this, medal);
+                    }
+                }
+            }
+        }
+    }
 
-	/**
-	 * Gets raw player data proto
-	 *
-	 * @return Player data
-	 */
-	public PlayerData getPlayerData() {
-		return playerData;
-	}
+    public enum Currency {
+        STARDUST, POKECOIN
+    }
 
-	/**
-	 * Gets avatar
-	 *
-	 * @return Player Avatar object
-	 */
-	public PlayerAvatar getAvatar() {
-		return avatar;
-	}
+    /**
+     * Gets raw player data proto
+     *
+     * @return Player data
+     */
+    public PlayerData getPlayerData() {
+        return playerData;
+    }
 
-	/**
-	 * Gets daily bonus
-	 *
-	 * @return DailyBonus object
-	 */
-	public DailyBonus getDailyBonus() {
-		return dailyBonus;
-	}
+    /**
+     * Gets avatar
+     *
+     * @return Player Avatar object
+     */
+    public PlayerAvatar getAvatar() {
+        return avatar;
+    }
 
-	/**
-	 * Gets contact settings
-	 *
-	 * @return ContactSettings object
-	 */
-	public ContactSettings getContactSettings() {
-		return contactSettings;
-	}
+    /**
+     * Gets daily bonus
+     *
+     * @return DailyBonus object
+     */
+    public DailyBonus getDailyBonus() {
+        return dailyBonus;
+    }
 
-	/**
-	 * Gets a map of all currencies
-	 *
-	 * @return map of currencies
-	 */
-	public Map<Currency, Integer> getCurrencies() {
-		return currencies;
-	}
+    /**
+     * Gets contact settings
+     *
+     * @return ContactSettings object
+     */
+    public ContactSettings getContactSettings() {
+        return contactSettings;
+    }
 
-	/**
-	 * Gets player stats
-	 *
-	 * @return stats API object
-	 */
-	public Stats getStats() {
-		if (stats == null) {
-			return new Stats(PlayerStatsOuterClass.PlayerStats.newBuilder().build());
-		}
-		return stats;
-	}
+    /**
+     * Gets a map of all currencies
+     *
+     * @return map of currencies
+     */
+    public Map<Currency, Integer> getCurrencies() {
+        return currencies;
+    }
 
-	/**
-	 * Sets the player statistics
-	 *
-	 * @param stats the statistics to apply
-	 * @throws RequestFailedException if a request fails while sending a request
-	 */
-	public void setStats(Stats stats) throws RequestFailedException {
-		int oldLevel = level;
-		level = stats.getLevel();
-		if (this.stats != null) {
-			if (level > oldLevel) {
-				List<PlayerListener> listeners = api.getListeners(PlayerListener.class);
-				for (PlayerListener listener : listeners) {
-					listener.onLevelUp(api, oldLevel, level);
-				}
-				acceptLevelUpRewards(level);
-			}
-		}
-		this.stats = stats;
-	}
+    /**
+     * Gets player stats
+     *
+     * @return stats API object
+     */
+    public Stats getStats() {
+        if (stats == null) {
+            return new Stats(PlayerStatsOuterClass.PlayerStats.newBuilder().build());
+        }
+        return stats;
+    }
 
-	/**
-	 * Gets tutorial states
-	 *
-	 * @return TutorialState object
-	 */
-	public TutorialState getTutorialState() {
-		return tutorialState;
-	}
+    /**
+     * Sets the player statistics
+     *
+     * @param stats the statistics to apply
+     * @throws RequestFailedException if a request fails while sending a request
+     */
+    public void setStats(Stats stats) throws RequestFailedException {
+        int oldLevel = level;
+        level = stats.getLevel();
+        if (this.stats != null) {
+            if (level > oldLevel) {
+                List<PlayerListener> listeners = api.getListeners(PlayerListener.class);
+                for (PlayerListener listener : listeners) {
+                    listener.onLevelUp(api, oldLevel, level);
+                }
+                acceptLevelUpRewards(level);
+            }
+        }
+        this.stats = stats;
+    }
 
-	/**
-	 * @return whether this player has a buddy active
-	 */
-	public boolean hasBuddy() {
-		return buddy != null;
-	}
+    /**
+     * Gets tutorial states
+     *
+     * @return TutorialState object
+     */
+    public TutorialState getTutorialState() {
+        return tutorialState;
+    }
 
-	/**
-	 * Sets the current buddy
-	 *
-	 * @param pokemon the pokemon to set as your buddy
-	 * @return if this task was successfull
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 */
-	public boolean setBuddy(Pokemon pokemon) throws
-			RequestFailedException {
-		SetBuddyPokemonMessageOuterClass.SetBuddyPokemonMessage message = SetBuddyPokemonMessageOuterClass
-				.SetBuddyPokemonMessage.newBuilder()
-				.setPokemonId(pokemon.getId())
-				.build();
-		ServerRequest request = new ServerRequest(RequestType.SET_BUDDY_POKEMON, message);
-		api.getRequestHandler().sendServerRequests(request, true);
-		try {
-			SetBuddyPokemonResponse response = SetBuddyPokemonResponse.parseFrom(request.getData());
-			buddy = new Buddy(api, response.getUpdatedBuddy());
-			return response.hasUpdatedBuddy();
-		} catch (InvalidProtocolBufferException e) {
-			throw new RequestFailedException(e);
-		}
-	}
+    /**
+     * @return whether this player has a buddy active
+     */
+    public boolean hasBuddy() {
+        return buddy != null;
+    }
 
-	/**
-	 * Set the account to legal screen in order to receive valid response
-	 *
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 */
-	public void activateAccount() throws RequestFailedException {
-		markTutorial(TutorialStateOuterClass.TutorialState.LEGAL_SCREEN);
-	}
+    /**
+     * Sets the current buddy
+     *
+     * @param pokemon the pokemon to set as your buddy
+     * @return if this task was successfull
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     */
+    public boolean setBuddy(Pokemon pokemon) throws
+            RequestFailedException {
+        SetBuddyPokemonMessageOuterClass.SetBuddyPokemonMessage message = SetBuddyPokemonMessageOuterClass.SetBuddyPokemonMessage.newBuilder()
+                .setPokemonId(pokemon.getId())
+                .build();
+        ServerRequest request = new ServerRequest(RequestType.SET_BUDDY_POKEMON, message);
+        api.getRequestHandler().sendServerRequests(request, true);
+        try {
+            SetBuddyPokemonResponse response = SetBuddyPokemonResponse.parseFrom(request.getData());
+            buddy = new Buddy(api, response.getUpdatedBuddy());
+            return response.hasUpdatedBuddy();
+        } catch (InvalidProtocolBufferException e) {
+            throw new RequestFailedException(e);
+        }
+    }
 
-	/**
-	 * Setup an avatar for the current account
-	 *
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 */
-	public void setupAvatar() throws RequestFailedException {
-		SecureRandom random = new SecureRandom();
+    /**
+     * Set the account to legal screen in order to receive valid response
+     *
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     */
+    public void activateAccount() throws RequestFailedException {
+        markTutorial(TutorialStateOuterClass.TutorialState.LEGAL_SCREEN);
+    }
 
-		PlayerGender gender = random.nextInt(100) % 2 == 0 ? PlayerGender.FEMALE : PlayerGender.MALE;
-		PlayerAvatar avatar = new PlayerAvatar(gender,
-				random.nextInt(PlayerAvatar.getAvailableSkins()),
-				random.nextInt(PlayerAvatar.getAvailableHair()),
-				random.nextInt(PlayerAvatar.getAvailableShirts(gender)),
-				random.nextInt(PlayerAvatar.getAvailablePants(gender)),
-				random.nextInt(PlayerAvatar.getAvailableHats()),
-				random.nextInt(PlayerAvatar.getAvailableShoes()),
-				random.nextInt(PlayerAvatar.getAvailableEyes()),
-				random.nextInt(PlayerAvatar.getAvailableBags(gender)));
+    /**
+     * Setup an avatar for the current account
+     *
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     */
+    public void setupAvatar() throws RequestFailedException {
+        SecureRandom random = new SecureRandom();
 
-		List<TutorialListener> listeners = api.getListeners(TutorialListener.class);
-		for (TutorialListener listener : listeners) {
-			PlayerAvatar listenerAvatar = listener.selectAvatar(api);
-			if (listenerAvatar != null) {
-				avatar = listenerAvatar;
-				break;
-			}
-		}
+        PlayerGender gender = random.nextInt(100) % 2 == 0 ? PlayerGender.FEMALE : PlayerGender.MALE;
+        PlayerAvatar avatar = new PlayerAvatar(gender,
+                random.nextInt(PlayerAvatar.getAvailableSkins()),
+                random.nextInt(PlayerAvatar.getAvailableHair()),
+                random.nextInt(PlayerAvatar.getAvailableShirts(gender)),
+                random.nextInt(PlayerAvatar.getAvailablePants(gender)),
+                random.nextInt(PlayerAvatar.getAvailableHats()),
+                random.nextInt(PlayerAvatar.getAvailableShoes()),
+                random.nextInt(PlayerAvatar.getAvailableEyes()),
+                random.nextInt(PlayerAvatar.getAvailableBags(gender)));
 
-		final SetAvatarMessage setAvatarMessage = SetAvatarMessage.newBuilder()
-				.setPlayerAvatar(avatar.getAvatar())
-				.build();
+        List<TutorialListener> listeners = api.getListeners(TutorialListener.class);
+        for (TutorialListener listener : listeners) {
+            PlayerAvatar listenerAvatar = listener.selectAvatar(api);
+            if (listenerAvatar != null) {
+                avatar = listenerAvatar;
+                break;
+            }
+        }
 
-		ServerRequest request = new ServerRequest(RequestType.SET_AVATAR, setAvatarMessage);
+        final SetAvatarMessage setAvatarMessage = SetAvatarMessage.newBuilder()
+                .setPlayerAvatar(avatar.getAvatar())
+                .build();
 
-		api.getRequestHandler().sendServerRequests(request, true);
+        ServerRequest request = new ServerRequest(RequestType.SET_AVATAR, setAvatarMessage);
 
-		try {
-			SetAvatarResponse setAvatarResponse = SetAvatarResponse.parseFrom(request.getData());
-			playerData = setAvatarResponse.getPlayerData();
+        api.getRequestHandler().sendServerRequests(request, true);
 
-			updateProfile(playerData);
-		} catch (InvalidProtocolBufferException e) {
-			throw new RequestFailedException(e);
-		}
+        try {
+            SetAvatarResponse setAvatarResponse = SetAvatarResponse.parseFrom(request.getData());
+            playerData = setAvatarResponse.getPlayerData();
 
-		markTutorial(TutorialStateOuterClass.TutorialState.AVATAR_SELECTION);
+            updateProfile(playerData);
+        } catch (InvalidProtocolBufferException e) {
+            throw new RequestFailedException(e);
+        }
 
-		api.getAssetDigest();
-	}
+        markTutorial(TutorialStateOuterClass.TutorialState.AVATAR_SELECTION);
 
-	/**
-	 * Encounter tutorial complete. In other words, catch the first Pokémon
-	 *
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 */
-	public void encounterTutorialComplete() throws
-			RequestFailedException {
-		StarterPokemon starter = StarterPokemon.random();
+        api.getAssetDigest();
+    }
 
-		List<TutorialListener> listeners = api.getListeners(TutorialListener.class);
-		for (TutorialListener listener : listeners) {
-			StarterPokemon pokemon = listener.selectStarter(api);
-			if (pokemon != null) {
-				starter = pokemon;
-				break;
-			}
-		}
+    /**
+     * Encounter tutorial complete. In other words, catch the first Pokémon
+     *
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     */
+    public void encounterTutorialComplete() throws
+            RequestFailedException {
+        StarterPokemon starter = StarterPokemon.random();
 
-		final EncounterTutorialCompleteMessage.Builder builder =
-				EncounterTutorialCompleteMessage.newBuilder()
-						.setPokemonId(starter.getPokemon());
+        List<TutorialListener> listeners = api.getListeners(TutorialListener.class);
+        for (TutorialListener listener : listeners) {
+            StarterPokemon pokemon = listener.selectStarter(api);
+            if (pokemon != null) {
+                starter = pokemon;
+                break;
+            }
+        }
 
-		ServerRequest request = new ServerRequest(RequestType.ENCOUNTER_TUTORIAL_COMPLETE, builder.build());
+        final EncounterTutorialCompleteMessage.Builder builder
+                = EncounterTutorialCompleteMessage.newBuilder()
+                        .setPokemonId(starter.getPokemon());
 
-		api.getRequestHandler().sendServerRequests(request, true);
+        ServerRequest request = new ServerRequest(RequestType.ENCOUNTER_TUTORIAL_COMPLETE, builder.build());
 
-		final GetPlayerMessage getPlayerReqMsg = GetPlayerMessage.newBuilder()
-				.setPlayerLocale(playerLocale.getPlayerLocale())
-				.build();
-		request = new ServerRequest(RequestType.GET_PLAYER, getPlayerReqMsg);
+        api.getRequestHandler().sendServerRequests(request, true);
 
-		api.getRequestHandler().sendServerRequests(request, true);
+        final GetPlayerMessage getPlayerReqMsg = GetPlayerMessage.newBuilder()
+                .setPlayerLocale(playerLocale.getPlayerLocale())
+                .build();
+        request = new ServerRequest(RequestType.GET_PLAYER, getPlayerReqMsg);
 
-		try {
-			updateProfile(GetPlayerResponse.parseFrom(request.getData()));
-		} catch (InvalidProtocolBufferException e) {
-			throw new RequestFailedException(e);
-		}
-	}
+        api.getRequestHandler().sendServerRequests(request, true);
 
-	/**
-	 * Setup an user name for our account
-	 *
-	 * @return the claimed codename
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 */
-	public String claimCodeName() throws RequestFailedException {
-		return claimCodeName(null);
-	}
+        try {
+            updateProfile(GetPlayerResponse.parseFrom(request.getData()));
+        } catch (InvalidProtocolBufferException e) {
+            throw new RequestFailedException(e);
+        }
+    }
 
-	/**
-	 * Setup an user name for our account
-	 *
-	 * @param lastFailure the last name used that was already taken; null for first try.
-	 * @return the claimed codename
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 */
+    /**
+     * Setup an user name for our account
+     *
+     * @return the claimed codename
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     */
+    public String claimCodeName() throws RequestFailedException {
+        return claimCodeName(null);
+    }
+
+    /**
+     * Setup an user name for our account
+     *
+     * @param lastFailure the last name used that was already taken; null for
+     * first try.
+     * @return the claimed codename
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     */
     public String claimCodeName(String lastFailure) throws RequestFailedException {
-        System.out.println("Param:"+lastFailure);
-        String name ="";
+        System.out.println("Param:" + lastFailure);
+        String name = lastFailure;
         if (getPlayerData().getRemainingCodenameClaims() <= 0) {
             throw new RuntimeException("You have no remaining codename claims!");
         }
@@ -558,7 +571,7 @@ public class PlayerProfile {
             String listenerName = listener.claimName(api, lastFailure);
             if (listenerName != null) {
                 name = listenerName;
-                System.out.println("Name"+name);
+                System.out.println("Name" + name);
                 break;
             }
         }
@@ -601,48 +614,53 @@ public class PlayerProfile {
         return updatedCodename;
     }
 
-	/**
-	 * The last step, mark the last tutorial state as completed
-	 *
-	 * @throws RequestFailedException if an exception occurred while sending requests
-	 */
-	public void firstTimeExperienceComplete() throws RequestFailedException {
-		markTutorial(TutorialStateOuterClass.TutorialState.FIRST_TIME_EXPERIENCE_COMPLETE);
-	}
+    /**
+     * The last step, mark the last tutorial state as completed
+     *
+     * @throws RequestFailedException if an exception occurred while sending
+     * requests
+     */
+    public void firstTimeExperienceComplete() throws RequestFailedException {
+        markTutorial(TutorialStateOuterClass.TutorialState.FIRST_TIME_EXPERIENCE_COMPLETE);
+    }
 
-	/**
-	 * Completes the visit gym tutorial
-	 * @throws RequestFailedException if an exception occurred while sending this request
-	 */
-	public void visitGymComplete() throws RequestFailedException {
-		markTutorial(TutorialStateOuterClass.TutorialState.GYM_TUTORIAL);
-	}
+    /**
+     * Completes the visit gym tutorial
+     *
+     * @throws RequestFailedException if an exception occurred while sending
+     * this request
+     */
+    public void visitGymComplete() throws RequestFailedException {
+        markTutorial(TutorialStateOuterClass.TutorialState.GYM_TUTORIAL);
+    }
 
-	/**
-	 * Completes the visit pokestop tutorial
-	 * @throws RequestFailedException if an exception occurred while sending this request
-	 */
-	public void visitPokestopComplete() throws RequestFailedException {
-		markTutorial(TutorialStateOuterClass.TutorialState.POKESTOP_TUTORIAL);
-	}
+    /**
+     * Completes the visit pokestop tutorial
+     *
+     * @throws RequestFailedException if an exception occurred while sending
+     * this request
+     */
+    public void visitPokestopComplete() throws RequestFailedException {
+        markTutorial(TutorialStateOuterClass.TutorialState.POKESTOP_TUTORIAL);
+    }
 
-	private void markTutorial(TutorialStateOuterClass.TutorialState state)
-			throws RequestFailedException {
-		final MarkTutorialCompleteMessage tutorialMessage = MarkTutorialCompleteMessage.newBuilder()
-				.addTutorialsCompleted(state)
-				.setSendMarketingEmails(false)
-				.setSendPushNotifications(false).build();
+    private void markTutorial(TutorialStateOuterClass.TutorialState state)
+            throws RequestFailedException {
+        final MarkTutorialCompleteMessage tutorialMessage = MarkTutorialCompleteMessage.newBuilder()
+                .addTutorialsCompleted(state)
+                .setSendMarketingEmails(false)
+                .setSendPushNotifications(false).build();
 
-		ServerRequest request = new ServerRequest(RequestType.MARK_TUTORIAL_COMPLETE, tutorialMessage);
+        ServerRequest request = new ServerRequest(RequestType.MARK_TUTORIAL_COMPLETE, tutorialMessage);
 
-		api.getRequestHandler().sendServerRequests(request, true);
+        api.getRequestHandler().sendServerRequests(request, true);
 
-		try {
-			playerData = MarkTutorialCompleteResponse.parseFrom(request.getData()).getPlayerData();
+        try {
+            playerData = MarkTutorialCompleteResponse.parseFrom(request.getData()).getPlayerData();
 
-			updateProfile(playerData);
-		} catch (InvalidProtocolBufferException e) {
-			throw new RequestFailedException(e);
-		}
-	}
+            updateProfile(playerData);
+        } catch (InvalidProtocolBufferException e) {
+            throw new RequestFailedException(e);
+        }
+    }
 }
