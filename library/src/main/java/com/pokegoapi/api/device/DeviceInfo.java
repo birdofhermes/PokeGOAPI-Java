@@ -36,11 +36,11 @@ public class DeviceInfo {
 			{"iPhone9,4", "iPhone", "D111AP"}
 	};
 
-	private static final String[] IPHONE_OS_VERSIONS = { "11.0", "11.1", "11.2", "11.2.5", "11.3.0"
+	private static final String[] IPHONE_OS_VERSIONS = { "11.0", "11.1", "11.2", "11.2.5", "11.2.6", "11.3.0"
 	};
 
 	private static final String[] IOS_VERSIONS = {
-			"11.0", "11.1", "11.2", "11.2.5", "11.3.0"
+			"11.0", "11.1", "11.2", "11.2.5", "11.2.6", "11.3.0"
 	};
 
 	private SignatureOuterClass.Signature.DeviceInfo.Builder deviceInfoBuilder;
