@@ -28,6 +28,15 @@ public class Raid {
 	private final Gym gym;
 	@Getter
 	private final RaidInfo raidInfo;
+	
+	
+	/**
+	 * Instantiates a new Pokestop.
+	 *
+	 * @param api the api
+	 * @param gym the Gym Data
+	 * @param raidInfo the Raid info
+	 */
 
 	public Raid(PokemonGo api, Gym gym, RaidInfo raidInfo) {
 		this.api = api;
