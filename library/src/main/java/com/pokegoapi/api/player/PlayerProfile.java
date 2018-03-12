@@ -546,60 +546,59 @@ public class PlayerProfile {
 	 * @return the claimed codename
 	 * @throws RequestFailedException if an exception occurred while sending requests
 	 */
-	public String claimCodeName(String lastFailure)
-			throws RequestFailedException {
-		if (getPlayerData().getRemainingCodenameClaims() <= 0) {
-			throw new RuntimeException("You have no remaining codename claims!");
-		}
-		int startNr =0;
-		String name = randomCodenameGenerator(startNr);
+    public String claimCodeName(String lastFailure) throws RequestFailedException {
+        System.out.println("Param:"+lastFailure);
+        if (getPlayerData().getRemainingCodenameClaims() <= 0) {
+            throw new RuntimeException("You have no remaining codename claims!");
+        }
 
-		List<TutorialListener> listeners = api.getListeners(TutorialListener.class);
-		for (TutorialListener listener : listeners) {
-			String listenerName = listener.claimName(api, lastFailure);
-			if (listenerName != null) {
-				name = listenerName;
-				break;
-			}
-		}
+        List<TutorialListener> listeners = api.getListeners(TutorialListener.class);
+        for (TutorialListener listener : listeners) {
+            String listenerName = listener.claimName(api, lastFailure);
+            if (listenerName != null) {
+                name = listenerName;
+                System.out.println("Name"+name);
+                break;
+            }
+        }
 
-		ClaimCodenameMessage claimCodenameMessage = ClaimCodenameMessage.newBuilder()
-				.setCodename(name)
-				.build();
+        ClaimCodenameMessage claimCodenameMessage = ClaimCodenameMessage.newBuilder()
+                .setCodename(name)
+                .build();
 
-		ServerRequest request = new ServerRequest(RequestType.CLAIM_CODENAME, claimCodenameMessage);
+        ServerRequest request = new ServerRequest(RequestType.CLAIM_CODENAME, claimCodenameMessage);
 
-		api.getRequestHandler().sendServerRequests(request, true);
+        api.getRequestHandler().sendServerRequests(request, true);
 
-		String updatedCodename;
-		try {
-			ClaimCodenameResponse claimCodenameResponse = ClaimCodenameResponse.parseFrom(request.getData());
-			if (claimCodenameResponse.getStatus() != ClaimCodenameResponse.Status.SUCCESS) {
-				return claimCodeName(name);
-			}
-			updatedCodename = claimCodenameResponse.getCodename();
+        String updatedCodename;
+        try {
+            ClaimCodenameResponse claimCodenameResponse = ClaimCodenameResponse.parseFrom(request.getData());
+            if (claimCodenameResponse.getStatus() != ClaimCodenameResponse.Status.SUCCESS) {
+                return claimCodeName(name);
+            }
+            updatedCodename = claimCodenameResponse.getCodename();
 
-			if (claimCodenameResponse.hasUpdatedPlayer()) {
-				updateProfile(claimCodenameResponse.getUpdatedPlayer());
-			}
+            if (claimCodenameResponse.hasUpdatedPlayer()) {
+                updateProfile(claimCodenameResponse.getUpdatedPlayer());
+            }
 
-			if (updatedCodename != null) {
-				markTutorial(TutorialStateOuterClass.TutorialState.NAME_SELECTION);
+            if (updatedCodename != null) {
+                markTutorial(TutorialStateOuterClass.TutorialState.NAME_SELECTION);
 
-				final GetPlayerMessage getPlayerReqMsg = GetPlayerMessage.newBuilder()
-						.setPlayerLocale(playerLocale.getPlayerLocale())
-						.build();
-				request = new ServerRequest(RequestType.GET_PLAYER, getPlayerReqMsg);
+                final GetPlayerMessage getPlayerReqMsg = GetPlayerMessage.newBuilder()
+                        .setPlayerLocale(playerLocale.getPlayerLocale())
+                        .build();
+                request = new ServerRequest(RequestType.GET_PLAYER, getPlayerReqMsg);
 
-				api.getRequestHandler().sendServerRequests(request, true);
+                api.getRequestHandler().sendServerRequests(request, true);
 
-				updateProfile(GetPlayerResponse.parseFrom(request.getData()));
-			}
-		} catch (InvalidProtocolBufferException e) {
-			throw new RequestFailedException(e);
-		}
-		return updatedCodename;
-	}
+                updateProfile(GetPlayerResponse.parseFrom(request.getData()));
+            }
+        } catch (InvalidProtocolBufferException e) {
+            throw new RequestFailedException(e);
+        }
+        return updatedCodename;
+    }
 
 	/**
 	 * The last step, mark the last tutorial state as completed
@@ -644,12 +643,5 @@ public class PlayerProfile {
 		} catch (InvalidProtocolBufferException e) {
 			throw new RequestFailedException(e);
 		}
-	}
-
-    private static String randomCodenameGenerator(int randomNR) {
-		StringBuilder sb = new StringBuilder();
-		sb.append("pokemapecs");
-                sb.append(randomNR);
-		return sb.toString();
 	}
 }
