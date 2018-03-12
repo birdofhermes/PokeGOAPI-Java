@@ -63,12 +63,12 @@ import java.util.Map;
 import java.util.Random;
 
 public class PlayerProfile {
-
-    private static final String TAG = PlayerProfile.class.getSimpleName();
-    private final PokemonGo api;
-    private final PlayerLocale playerLocale;
-    private PlayerData playerData;
-    @Getter
+    
+private static final String TAG = PlayerProfile.class.getSimpleName();
+private final PokemonGo api;
+private final PlayerLocale playerLocale;
+private PlayerData playerData;
+@Getter
     private Map<BadgeType, Medal> medals = Collections.synchronizedMap(new HashMap<BadgeType, Medal>());
     private PlayerAvatar avatar;
     private DailyBonus dailyBonus;
